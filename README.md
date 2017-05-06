@@ -15,10 +15,10 @@ The graph file is supposed to be in the format of edge file and the vertices are
 
     ./mykcore -p examplegraph examplegraph_10
 
-run our parallel algorithm, the time cost is saved in AP_time_p.txt
+run our parallel algorithm, the time cost is saved in examplegraph_time_p.txt
 
     ./mykcore -c examplegraph examplegraph_10
 
-run the centralized algorithm, the time cost is saved in AP_time_c.txt
+run the centralized algorithm, the time cost is saved in examplegraph_time_c.txt
 
-The new core numbers are saved in AP_core_del.txt and AP_core_ins.txt for deletion and insertion case respectively.
+The new core numbers are saved in examplegraph_core_del.txt and examplegraph_core_ins.txt for deletion and insertion case respectively.
