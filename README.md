@@ -5,7 +5,7 @@ The core number is a fundamental index reflecting the cohesiveness of a graph, w
 
 # How To Use
 
-make
+    make
 
     ./mykcore -p(parallel)/-c(centralized) graph_filename edge_filename
 
