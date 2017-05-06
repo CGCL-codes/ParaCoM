@@ -75,9 +75,6 @@ void clear(){
 	edgeNum = 0;
 }
 
-// --------------------------------------------------------------------------
-// Methods
-// --------------------------------------------------------------------------
 /**
  * Adds an edge to the graph.
  *
@@ -130,17 +127,6 @@ void clear(){
 }
 
 /**
-*set and get core number of a vertex
-**/
- void SetCore(int a, int b){
-    vertices[a].core = b;
-}
-
- int GetCore(int u){
-   return vertices[u].core;
-}
-
-/**
  * Returns the number of nodes in the graph.
  */
  int GetvertexNum()
@@ -152,7 +138,6 @@ void clear(){
 {
 	return edgeNum;
 }
-
 /**
 *compute core number for the graph, static method
 */
@@ -225,8 +210,200 @@ vector<int> GetAllcores(){
 	return allcores;
 }
 
+// --------------------------------------------------------------------------
+// main Methods for centralized algorithm
+// --------------------------------------------------------------------------
+
 /**
-*decrease core numbers
+*delete all selected edges and conduct the centralized algorithm
+*/
+void Deletion(vector<pair<int,int> > allNewEdges){//delete edges	
+	for(int k=0;k < allNewEdges.size();k ++){
+		int a = allNewEdges[k].first;
+		int b = allNewEdges[k].second;
+		if(deleteEdge(a,b) && deleteEdge(b,a)){
+			computeMcd();
+			TravelDelete(a,b);
+			resetVertex();
+		}
+	}		
+}
+
+/**
+*insert all selected edges and conduct the centralized algorithm
+*/
+void Insertion(vector<pair<int,int> > allNewEdges){
+	for(int k=0;k < allNewEdges.size();k ++){
+		int a = allNewEdges[k].first;
+		int b = allNewEdges[k].second;
+		if(addEdge(a,b) && addEdge(b,a)){
+			computeMcd();
+			computePcd();
+			TravelInsert(a,b);
+			for(int i=0;i<vertexNum;i++){						
+				if((vertices[i].visited)&&(!vertices[i].removed)){
+					vertices[i].core++;
+				}
+			}
+			resetVertex();
+		}
+	}
+}
+
+//deal with one edge insertion 
+void  TravelInsert(int u1, int u2)
+{
+    int r=u1;
+    int coreu1=vertices[u1].core;
+    int coreu2=vertices[u2].core;
+    if(coreu1 > coreu2){
+        r=u2;
+    }
+    stack<int> s;
+    s.push(r);
+    int K=vertices[r].core;
+    vertices[r].visited=true;
+    vertices[r].cd=vertices[r].pcd;
+    int cdr = vertices[r].cd;
+    while(!s.empty()){
+        int v=s.top();
+        s.pop();
+        int cdv = vertices[v].cd;
+        if(cdv > K){
+            for(int j=0;j<edges[v].size();j++){
+                int w=edges[v][j];
+                int corew = vertices[w].core;
+                int mcdw = vertices[w].mcd;
+                if(corew == K && mcdw > K &&(!vertices[w].visited)){
+                    s.push(w);
+                    vertices[w].visited = true;
+                    vertices[w].cd += vertices[w].pcd;
+                }
+            }
+        }
+        else{
+            if(!  vertices[v].removed){
+                InsertRemovement(K,v);
+            }
+        }
+    }
+}
+
+void  InsertRemovement(int k, int v )
+{
+    vertices[v].removed=true;
+    for(int i=0;i<edges[v].size();i++){
+        int w=edges[v][i];
+        int corew = vertices[w].core;
+        if(corew == k){
+            vertices[w].cd--;
+            int cdw = vertices[w].cd;
+            if(cdw == k && !vertices[w].removed){
+                InsertRemovement(k,w);
+            }
+		}
+    }
+}
+
+//deal with one edge deletion
+void TravelDelete(int u1, int u2)
+{
+    int r = u1;
+    int coreu1 = vertices[u1].core;
+    int coreu2 = vertices[u2].core;
+    int k = coreu1;
+    if(coreu1 > coreu2){ 
+		r=u2;
+        k=coreu2;
+    }
+    if(coreu1 != coreu2){
+        vertices[r].visited = true;
+        vertices[r].cd = vertices[r].mcd;
+        int cdr = vertices[r].cd;
+        if(cdr < k){
+            DeleteRemove(k,r);
+        }
+    }
+    else{
+       vertices[u1].visited = true;
+       vertices[u1].cd = vertices[u1].mcd;
+       int cdu1 = vertices[u1].cd;
+       if(cdu1 < k){
+            DeleteRemove(k,u1);
+       }
+       vertices[u2].visited = true;
+       vertices[u2].cd = vertices[u2].mcd;
+       int cdu2 = vertices[u2].cd;
+       if(!vertices[u2].removed && cdu2 < k ){
+            DeleteRemove(k,u2);
+       }
+    }
+}
+
+void  DeleteRemove(int k, int v)
+{
+    vertices[v].removed = true;
+    vertices[v].core--;
+    for(int i=0;i< edges[v].size();i++){
+        int w= edges[v][i];
+        int corew =   vertices[w].core;
+        if(corew == k){
+            if(!  vertices[w].visited){
+                  vertices[w].cd += vertices[w].mcd;
+                  vertices[w].visited = true;
+            }
+              vertices[w].cd--;
+            int cdw = vertices[w].cd;
+            if(cdw < k && ! vertices[w].removed){
+                DeleteRemove(k,w);
+            }
+        }
+    }
+}
+
+/**
+*compute MCD for all vertices
+*/
+void computeMcd(){
+    for(int v=0;v<vertexNum;v++){
+        for(int j=0;j<edges[v].size();j++)
+        {
+            int w=edges[v][j];
+            int corev=vertices[v].core;
+            int corew=vertices[w].core;
+            if(corew >= corev){
+                vertices[v].mcd++;
+            }
+        }
+    }
+}
+
+/**
+*compute PCD for all vertices
+*/
+void computePcd(){
+    for(int v = 0;v < vertexNum;v++){
+        for(int j=0;j<edges[v].size();j++)
+        {
+            int w=edges[v][j];
+            int corev=vertices[v].core;
+            int corew=vertices[w].core;
+            int mcdw=vertices[w].mcd;
+            if(corew > corev ||
+               (corew == corev && mcdw> corev)){
+                    vertices[v].pcd++;
+            }
+        }
+    }
+}
+
+
+// --------------------------------------------------------------------------
+// Methods for parallel algorithm
+// --------------------------------------------------------------------------
+
+/**
+*decrease core numbers for vertices that are visited and removed
 */
 void delCores(){
 	for(int i=0;i<vertexNum;i++){
@@ -237,7 +414,7 @@ void delCores(){
 	}
 }
 /**
-*increase core numbers
+*increase core numbers for vertices that are visited but not removed
 */
 void insCores(){
 	for(int i=0;i<vertexNum;i++){
@@ -248,21 +425,8 @@ void insCores(){
 	}
 }
 
-
 /**
-*in insertion case compute MCD for vertices whose core number is k
-*/
- void computeInsertMcd(int k){
-    for(int v = 0;v < vertexNum;v++){
-        int corev = vertices[v].core;
-        if(corev == k){
-            computeMcd(v);
-        }
-    }
-}
-
-/**
-*given a superior edge tree, compute the MCD for vertices in the EXPTree
+*given a superior edge set, compute the MCD for vertices in the EXPTree
 */
  void computeInsertMcd(vector<pair<int,int> > superioredges){
 	int edgenums = superioredges.size();
@@ -296,30 +460,30 @@ void insCores(){
 				}
 			}
 		   while(!s.empty()){
-            int v=s.top();
-            s.pop();
-            int sizev = edges[v].size();
-            int corev = vertices[v].core;
-            for(int j=0;j<sizev;j++){
-                int p = edges[v][j];
-                if(vertices[p].core == corev && !visited[p]){
-                    s.push(p);
-                    //vertices[p].visited = true;
-                    visited[p] = true;
-                    if(!vertices[p].mcd){
-                        int sizep = edges[p].size();
-                        int corep = vertices[p].core;
-						for(int k = 0;k < sizep;k ++){
-                            int w = edges[p][k];
-                            int corew = vertices[w].core;
-                            if(corew >= corep){
-                                vertices[p].mcd++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+				int v=s.top();
+				s.pop();
+				int sizev = edges[v].size();
+				int corev = vertices[v].core;
+				for(int j=0;j<sizev;j++){
+					int p = edges[v][j];
+					if(vertices[p].core == corev && !visited[p]){
+						s.push(p);
+						//vertices[p].visited = true;
+						visited[p] = true;
+						if(!vertices[p].mcd){
+							int sizep = edges[p].size();
+							int corep = vertices[p].core;
+							for(int k = 0;k < sizep;k ++){
+								int w = edges[p][k];
+								int corew = vertices[w].core;
+								if(corew >= corep){
+									vertices[p].mcd++;
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
