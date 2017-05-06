@@ -7,16 +7,16 @@ The core number is a fundamental index reflecting the cohesiveness of a graph, w
 
 make
 
-./mykcore -p(parallel)/-c(centralized) graph_filename edge_filename
+    ./mykcore -p(parallel)/-c(centralized) graph_filename edge_filename
 
 # Example
 
-./mykcore -p AP AP_1K 
+    ./mykcore -p AP AP_1K 
 
-    run our parallel algorithm, the time cost is saved in AP_time_p.txt
+run our parallel algorithm, the time cost is saved in AP_time_p.txt
 
-./mykcore -c AP AP_1K 
+    ./mykcore -c AP AP_1K 
 
-    run the centralized algorithm, the time cost is saved in AP_time_c.txt
+run the centralized algorithm, the time cost is saved in AP_time_c.txt
 
-    The new core numbers are saved in AP_core_del.txt and AP_core_ins.txt for deletion and insertion case respectively.
+The new core numbers are saved in AP_core_del.txt and AP_core_ins.txt for deletion and insertion case respectively.
