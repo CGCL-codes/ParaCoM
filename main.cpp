@@ -1,7 +1,7 @@
 #include<iostream>
 #include<stdio.h>
 #include <stdlib.h>
-
+#include <cstring>
 #include <dirent.h> 
 #include"graph.h"
 #include"newgraph.h"
@@ -10,8 +10,8 @@ using namespace std;
 #define CLOCK_PER_MS 1000
 
 void FindThreads(vector<params> param);
-void DeleteThread(vector<vector<pair<int,int> > > superiorEdges);
-void InsertThread(vector<vector<pair<int,int> > > superiorEdges);
+void DeleteThread();
+void InsertThread();
 void* GetKSuperiorEdges(void* param);
 void* TravelInsert(void *sameCoreEdges);
 void  InsertRemove(int k, int r);
@@ -21,201 +21,9 @@ Graph graph;
 newGraph newgraph;
 vector<vector<pair<int,int> > > superiorEdges;
 
-int main(int argc,char* argv[])
-{
-    if(argc != 3){
-		cout<<"Usage: graphfilename update_edge_filename"<<endl;
-		return 0;
-	}
-	string fname=argv[1];
-	string edge_file = argv[2];
-	int vertexNum,edgeNum,a,b;
-	vector<pair<int,int> > allNewEdges;
-	vector<int> allcores;
-    clock_t startall,endall,start, end;
-	double dur;
-    string output = fname + "_output.txt";
-	string delcorefile = fname + "_core_del.txt";
-	string inscorefile = fname + "_core_ins.txt";
-	ofstream fout(output.data(),ios::app);
-	vector<pair<int,int> > allEdges;
-	string graphfile = fname + ".txt";
-	string edgefile = edge_file + ".txt";
-	ifstream fingraph(graphfile.data());
-	ifstream finedge(edgefile.data());
-	fout<<fname<<"\t"<<edge_file<<"\t";
-	{//open files, read graph file and compute core
-		if ( !fingraph ){
-			cout <<  "Error opening "  << graphfile <<  " for input"  << endl;
-			return 0;
-		}
-		while(fingraph!=NULL){
-			fingraph>>a>>b;
-			graph.addEdge(a,b);
-			graph.addEdge(b,a);
-			allEdges.push_back(make_pair(a,b));
-		}
-		graph.ComputeCores();
-		allcores = graph.GetAllcores();
-	}
-	
-	{ //delete the edges first and then insert them back
-		vertexNum = edgeNum = a = b = 0;
-		int delta = 0;
-		vector<pair<int,int> > allNewEdges;
-		vector<pair<int,int> >corepair;
-		{//get new graph and set cores
-			if ( !finedge ){
-				cout <<  "Error opening "  << edgefile <<  " for input"  << endl;
-				return 0;
-			}
-			while(finedge!=NULL){
-				finedge>>a>>b;
-				allNewEdges.push_back(make_pair(a,b));
-			}
-			newgraph.Map_index(allNewEdges);
-			newgraph.SetCores(allcores);			
-		}
-		int newEdgeNum = newgraph.GetedgeNum();
-		cout<<newEdgeNum<<endl;
-		{//delete the edges
-			startall = clock();
-			double findTime = 0.0;
-			int round = 0;
-			while(newEdgeNum){
-				round++;
-				vector<params> param;
-				start = clock();
-				param = newgraph.GetParams();
-				superiorEdges.resize(param.size());
-				FindThreads(param);
-				end = clock();
-				dur =(double)(end-start)/CLOCK_PER_MS;
-				findTime += dur;
-				{//delete superior edges from old and new graph
-					for(int i = 0;i < superiorEdges.size();i ++){
-						vector<pair<int,int> > kedges = superiorEdges[i];
-						int ksize = kedges.size();
-						for(int k = 0;k < ksize;k ++){
-							int u = kedges[k].first;
-							int v = kedges[k].second;
-							if(!newgraph.deleteEdge(u,v)){
-								cout<<"delete "<<u<<","<<v<<endl;
-								cout<<"wrong delete edges in new graph!\n";
-								return 0;
-							}
-							if(!graph.deleteEdge(u,v) || !graph.deleteEdge(v,u)){
-								cout<<"delete "<<u<<","<<v<<endl;
-								cout<<"wrong delete edges in original graph!\n";
-								return 0;
-							}
-						}
-					}
-				}
-				
-				{//deleting threads
-					DeleteThread(superiorEdges);
-					graph.delCores();
-					graph.resetVertex();
-				}
-				
-				{//update cores
-					allcores = graph.GetAllcores();
-					newgraph.SetCores(allcores);
-					newEdgeNum = newgraph.GetedgeNum();
-					superiorEdges.clear();
-				}
-			}
-			endall = clock();
-			dur =(double)(endall-startall)/CLOCK_PER_MS;
-			fout<<dur<<"\t"<<findTime<<"\t"<<round<<"\t";	
-			//write to new core file
-			graph.WriteCores(delcorefile);
-			
-		}
-		
-		{//reconstruct new graph and set cores
-			graph.ComputeCores();
-			allcores = graph.GetAllcores();
-			newgraph.clear();
-			newgraph.Map_index(allNewEdges);
-			newgraph.SetCores(allcores);				
-		}
-
-		{//insertion
-			startall = clock();
-			newEdgeNum = newgraph.GetedgeNum();
-			double findTime = 0.0;
-			int round = 0;
-			while(newEdgeNum){
-				round++;
-				VECINT cores;
-				vector<params> param;
-				int index_p = 0;
-				start = clock();
-				param = newgraph.GetParams();
-				superiorEdges.resize(param.size());
-				FindThreads(param);
-				end = clock();
-				dur =(double)end-start;
-				findTime += dur;
-				{//delete edges from new graph, insert edges to original graph
-					int superiorEdgesSize = superiorEdges.size();
-					for(int i = 0;i < superiorEdgesSize;i ++){
-						//int ksize = superiorEdges[i].size();
-						vector<pair<int,int> > kedges = superiorEdges[i];
-						int ksize = kedges.size();
-						for(int k = 0;k < ksize;k ++){
-							int u = kedges[k].first;
-							int v = kedges[k].second;
-							if(!newgraph.deleteEdge(u,v)){
-								cout<<"delete "<<u<<","<<v<<endl;
-								cout<<"wrong delete edges in new graph!\n";
-								return 0;
-							}
-							if(!graph.addEdge(u,v) || !graph.addEdge(v,u)){
-								cout<<"insert "<<u<<","<<v<<endl;
-								cout<<"wrong inserting edges in original graph!\n";
-								return 0;
-							}
-						}
-					}
-				}
-
-				{//insertion threads
-					InsertThread(superiorEdges);
-					graph.insCores();
-					graph.resetVertex();
-				}
-
-				{//update cores for new graph
-					allcores = graph.GetAllcores();
-					newgraph.SetCores(allcores);
-					newEdgeNum = newgraph.GetedgeNum();
-					superiorEdges.clear();
-			    }
-			}
-			endall = clock();
-			dur =(double)(endall-startall)/CLOCK_PER_MS;
-			findTime/=CLOCK_PER_MS;
-			fout<<dur<<"\t"<<findTime<<"\t"<<round<<"\n";
-			
-			//write to new core file
-			graph.WriteCores(inscorefile);								
-		}
-
-		{//close the file
-			fingraph.close();
-			fout.close();
-		}	
-	}
-    
-	return 0;
-}
-
-
+//create finding threads to find superior edges
 void FindThreads(vector<params> param)
-{//create finding threads to find superior edges
+{
 	int num_threads = param.size();
 	pthread_t tids[num_threads];
 	for( int i = 0; i < num_threads; i++){
@@ -232,7 +40,56 @@ void FindThreads(vector<params> param)
 	}
 }
 
-void DeleteThread(vector<vector<pair<int,int> > > superiorEdges)
+//delete superior edges from new graph and insert them into original graph
+void InsertEdgesIntoGraph()
+{
+	int superiorEdgesSize = superiorEdges.size();
+	for(int i = 0;i < superiorEdgesSize;i ++){
+		//int ksize = superiorEdges[i].size();
+		vector<pair<int,int> > kedges = superiorEdges[i];
+		int ksize = kedges.size();
+		for(int k = 0;k < ksize;k ++){
+			int u = kedges[k].first;
+			int v = kedges[k].second;
+			if(!newgraph.deleteEdge(u,v)){
+				cout<<"delete "<<u<<","<<v<<endl;
+				cout<<"wrong delete edges in new graph!\n";
+				return;
+			}
+			if(!graph.addEdge(u,v) || !graph.addEdge(v,u)){
+				cout<<"insert "<<u<<","<<v<<endl;
+				cout<<"wrong inserting edges in original graph!\n";
+				return;
+			}
+		}
+	}
+}
+
+//delete superior edges from new graph and original graph
+void DeleteEdgesFromGraph()
+{
+	for(int i = 0;i < superiorEdges.size();i ++){
+		vector<pair<int,int> > kedges = superiorEdges[i];
+		int ksize = kedges.size();
+		for(int k = 0;k < ksize;k ++){
+			int u = kedges[k].first;
+			int v = kedges[k].second;
+			if(!newgraph.deleteEdge(u,v)){
+				cout<<"delete "<<u<<","<<v<<endl;
+				cout<<"wrong delete edges in new graph!\n";
+				return;
+			}
+			if(!graph.deleteEdge(u,v) || !graph.deleteEdge(v,u)){
+				cout<<"delete "<<u<<","<<v<<endl;
+				cout<<"wrong delete edges in original graph!\n";
+				return;
+			}
+		}
+	}
+}
+
+//start the deletion thread
+void DeleteThread()
 {
 	int num_threads = superiorEdges.size();
 	pthread_t threads[num_threads];
@@ -250,7 +107,8 @@ void DeleteThread(vector<vector<pair<int,int> > > superiorEdges)
 	}
 }
 
-void InsertThread(vector<vector<pair<int,int> > > superiorEdges)
+//start the insertion thread
+void InsertThread()
 {
 	int num_threads = superiorEdges.size();
 	pthread_t threads[num_threads];
@@ -505,3 +363,170 @@ void  DeleteRemove(int k, int r)
     }
 }
 
+
+int main(int argc,char* argv[])
+{
+    if(argc != 4){
+		cout<<"Usage: -p(parallel)/-c(centralized) graph_filename edge_filename"<<endl;
+		return 0;
+	}
+	string fname=argv[2];
+	string edge_file = argv[3];
+	string graphfile = fname + ".txt";
+	string edgefile = edge_file + ".txt";
+	string delcorefile = fname + "_core_del.txt";
+	string inscorefile = fname + "_core_ins.txt";
+	ifstream fingraph(graphfile.data());
+	ifstream finedge(edgefile.data());
+	vector<pair<int,int> > allNewEdges;
+	vector<int> allcores;
+	clock_t startall,endall,start,end;
+	double dur;
+	{//open files, read graph and edge file and compute core
+		int a,b;
+		if ( !fingraph ){
+			cout <<  "Error opening "  << graphfile <<  " for input"  << endl;
+			return 0;
+		}
+		while(fingraph!=NULL){
+			fingraph>>a>>b;
+			graph.addEdge(a,b);
+			graph.addEdge(b,a);
+		}
+		graph.ComputeCores();
+		allcores = graph.GetAllcores();
+		//get new graph and set cores
+		if ( !finedge ){
+			cout <<  "Error opening "  << edgefile <<  " for input"  << endl;
+			return 0;
+		}
+		while(finedge!=NULL){
+			finedge>>a>>b;
+			allNewEdges.push_back(make_pair(a,b));
+		}
+		newgraph.Map_index(allNewEdges);
+		newgraph.SetCores(allcores);
+	}
+	
+	//parallel algorithm
+	if(strcmp(argv[1],"-p") == 0)
+	{ //delete the edges first and then insert them back
+		string output = fname + "_time_p.txt";
+		ofstream fout(output.data(),ios::app);
+		fout<<fname<<"\t"<<edge_file<<"\t";
+		int newEdgeNum = newgraph.GetedgeNum();
+		//cout<<newEdgeNum<<endl;
+		{//delete the edges
+			startall = clock();
+			double findTime = 0.0;
+			int round = 0;
+			while(newEdgeNum){
+				round++;
+				vector<params> param;
+				start = clock();
+				param = newgraph.GetParams();
+				superiorEdges.resize(param.size());
+				FindThreads(param);
+				end = clock();
+				dur =(double)(end-start)/CLOCK_PER_MS;
+				findTime += dur;
+				DeleteEdgesFromGraph();
+				
+				{//deleting threads and update cores for new graph
+					DeleteThread();
+					graph.delCores();
+					graph.resetVertex();
+					allcores = graph.GetAllcores();
+					newgraph.SetCores(allcores);
+					newEdgeNum = newgraph.GetedgeNum();
+					superiorEdges.clear();
+				}
+			}
+			endall = clock();
+			dur =(double)(endall-startall)/CLOCK_PER_MS;
+			fout<<dur<<"\t"<<findTime<<"\t"<<round<<"\t";	
+			//write to new core file
+			graph.WriteCores(delcorefile);
+			
+		}
+		
+		{//reconstruct new graph and set cores
+			graph.ComputeCores();
+			allcores = graph.GetAllcores();
+			newgraph.clear();
+			newgraph.Map_index(allNewEdges);
+			newgraph.SetCores(allcores);				
+		}
+
+		{//insertion
+			startall = clock();
+			newEdgeNum = newgraph.GetedgeNum();
+			double findTime = 0.0;
+			int round = 0;
+			while(newEdgeNum){
+				round++;
+				vector<params> param;
+				start = clock();
+				param = newgraph.GetParams();
+				superiorEdges.resize(param.size());
+				FindThreads(param);
+				end = clock();
+				dur =(double)end-start;
+				findTime += dur;
+				InsertEdgesIntoGraph();
+
+				{//insertion threads and update cores for new graph
+					InsertThread();
+					graph.insCores();
+					graph.resetVertex();
+					allcores = graph.GetAllcores();
+					newgraph.SetCores(allcores);
+					newEdgeNum = newgraph.GetedgeNum();
+					superiorEdges.clear();
+			    }
+			}
+			endall = clock();
+			dur =(double)(endall-startall)/CLOCK_PER_MS;
+			findTime/=CLOCK_PER_MS;
+			fout<<dur<<"\t"<<findTime<<"\t"<<round<<"\n";
+			
+			//write to new core file
+			graph.WriteCores(inscorefile);								
+		}
+		fout.close();
+	}   
+	else if(strcmp(argv[1],"-c") == 0){
+		string output = fname + "_time_c.txt";
+		ofstream fout(output.data(),ios::app);
+		fout<<fname<<"\t"<<edge_file<<"\t";
+		{//delete the selected edges
+			clock_t start,end;
+			start = clock();
+			graph.Deletion(allNewEdges);
+			end=clock();
+			double dur =(double)(end-start)/CLOCK_PER_MS;
+			fout<<dur<<"\t";
+			//write to core file
+			graph.WriteCores(delcorefile);	
+		}		
+		{//insert edges back			
+			clock_t start,end;
+			start = clock();
+			graph.Insertion(allNewEdges);
+			end=clock();
+			double dur =(double)(end-start)/CLOCK_PER_MS;					
+			fout<<dur<<"\n";
+			//write to new core file
+			graph.WriteCores(inscorefile);
+		}
+		fout.close();
+	}
+	
+	{//close the file
+		fingraph.close();
+		finedge.close();
+		
+	}	
+	cout<<fname<<" finished!"<<endl;
+	return 0;
+}
