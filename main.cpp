@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <cstring>
 #include <dirent.h> 
+#include <sys/time.h>
 #include"graph.h"
 #include"newgraph.h"
 using namespace std;
@@ -380,7 +381,8 @@ int main(int argc,char* argv[])
 	ifstream finedge(edgefile.data());
 	vector<pair<int,int> > allNewEdges;
 	vector<int> allcores;
-	clock_t startall,endall,start,end;
+	//clock_t startall,endall,start,end;
+	struct timeval t_start,t_end,f_start,f_end; 
 	double dur;
 	{//open files, read graph and edge file and compute core
 		int a,b;
@@ -417,18 +419,21 @@ int main(int argc,char* argv[])
 		int newEdgeNum = newgraph.GetedgeNum();
 		//cout<<newEdgeNum<<endl;
 		{//delete the edges
-			startall = clock();
-			double findTime = 0.0;
+			gettimeofday(&t_start, NULL); 
+			long startall_t = ((long)t_start.tv_sec)*1000+(long)t_start.tv_usec/1000; 
+			long findTime = 0.0;
 			int round = 0;
 			while(newEdgeNum){
 				round++;
 				vector<params> param;
-				start = clock();
+				gettimeofday(&f_start, NULL); 
+				long start_t =((long)f_start.tv_sec)*1000+(long)f_start.tv_usec/1000;
 				param = newgraph.GetParams();
 				superiorEdges.resize(param.size());
 				FindThreads(param);
-				end = clock();
-				dur =(double)(end-start)/CLOCK_PER_MS;
+				gettimeofday(&f_end, NULL); 
+				long end_t =((long)f_end.tv_sec)*1000+(long)f_end.tv_usec/1000;
+				dur =(end_t-start_t);
 				findTime += dur;
 				DeleteEdgesFromGraph();
 				
@@ -442,8 +447,9 @@ int main(int argc,char* argv[])
 					superiorEdges.clear();
 				}
 			}
-			endall = clock();
-			dur =(double)(endall-startall)/CLOCK_PER_MS;
+			gettimeofday(&t_end, NULL); 
+			long endall_t = ((long)t_end.tv_sec)*1000+(long)t_end.tv_usec/1000; 
+			dur = endall-startall;
 			fout<<dur<<"\t"<<findTime<<"\t"<<round<<"\t";	
 			//write to new core file
 			graph.WriteCores(delcorefile);
@@ -459,19 +465,22 @@ int main(int argc,char* argv[])
 		}
 
 		{//insertion
-			startall = clock();
+			gettimeofday(&t_start, NULL); 
+			long startall = ((long)t_start.tv_sec)*1000+(long)t_start.tv_usec/1000; 
 			newEdgeNum = newgraph.GetedgeNum();
 			double findTime = 0.0;
 			int round = 0;
 			while(newEdgeNum){
 				round++;
 				vector<params> param;
-				start = clock();
+				gettimeofday(&f_start, NULL); 
+				long start =((long)f_start.tv_sec)*1000+(long)f_start.tv_usec/1000;
 				param = newgraph.GetParams();
 				superiorEdges.resize(param.size());
 				FindThreads(param);
-				end = clock();
-				dur =(double)end-start;
+				gettimeofday(&f_end, NULL); 
+				long end =((long)f_end.tv_sec)*1000+(long)f_end.tv_usec/1000;
+				dur = end-start;
 				findTime += dur;
 				InsertEdgesIntoGraph();
 
@@ -485,8 +494,9 @@ int main(int argc,char* argv[])
 					superiorEdges.clear();
 			    }
 			}
-			endall = clock();
-			dur =(double)(endall-startall)/CLOCK_PER_MS;
+			gettimeofday(&t_end, NULL); 
+			long endall = ((long)t_end.tv_sec)*1000+(long)t_end.tv_usec/1000; 
+			dur = endall-startall;
 			findTime/=CLOCK_PER_MS;
 			fout<<dur<<"\t"<<findTime<<"\t"<<round<<"\n";
 			
